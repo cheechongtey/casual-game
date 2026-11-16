@@ -1,57 +1,65 @@
 import type { Room, Vec2 } from '../data/room';
-import { STEP_SECONDS, TUNING } from '../data/tuning';
-import { resolveCircle } from './collision';
-import { createRng, type Rng } from './rng';
+import { TUNING } from '../data/tuning';
+import { WEAPON } from '../data/weapons';
+import { integrateKnockback, updateRespawns } from './damage';
+import {
+  countDownPlayerTimers,
+  createPlayerCombat,
+  readPresses,
+  resolvePlayerHits,
+  separatePlayer,
+  updatePlayer,
+} from './player';
+import { createRng } from './rng';
 import { loadRoom } from './room';
+import type { AttackPhase, Entity, EntityKind, InputIntent, SimEvent, SimState } from './types';
 
-/** Device-independent input for one simulation step. */
-export interface InputIntent {
-  /** Move direction. Length above 1 is treated as 1. */
-  moveX: number;
-  moveY: number;
-  /** Aim angle in radians from +x, in world space (y grows down-screen). */
-  aim: number;
-}
+export type {
+  AttackPhase,
+  Entity,
+  EntityKind,
+  InputIntent,
+  PlayerAction,
+  PlayerCombat,
+  SimEvent,
+  SimState,
+} from './types';
+export { NO_INPUT } from './types';
 
-export type EntityKind = 'player';
-
-export interface Entity {
-  id: number;
-  kind: EntityKind;
-  /** Ground position after the latest step. */
-  pos: Vec2;
-  /** Ground position before the latest step. */
-  prevPos: Vec2;
-  /** Height above the ground. */
-  z: number;
-  /** Facing angle in radians from +x. */
-  facing: number;
-  radius: number;
-}
-
-export interface SimState {
-  tick: number;
-  rng: Rng;
-  room: Room;
-  entities: Entity[];
-  playerId: number;
-}
-
-export const NO_INPUT: InputIntent = { moveX: 0, moveY: 0, aim: 0 };
-
-/** Creates a simulation in the given room with the player at its spawn point. */
-export function createSim(seed: number, roomDef: Room): SimState {
-  const room = loadRoom(roomDef);
-  const player: Entity = {
-    id: 1,
-    kind: 'player',
-    pos: { ...room.spawn },
-    prevPos: { ...room.spawn },
+function createEntity(id: number, kind: EntityKind, pos: Vec2, radius: number, health: number): Entity {
+  return {
+    id,
+    kind,
+    pos: { ...pos },
+    prevPos: { ...pos },
     z: 0,
     facing: 0,
-    radius: TUNING.playerRadius,
+    radius,
+    vel: { x: 0, y: 0 },
+    health,
+    maxHealth: health,
+    defeated: false,
+    invulnerable: false,
+    solid: true,
+    home: kind === 'dummy' ? { ...pos } : null,
+    respawnTicks: 0,
   };
-  return { tick: 0, rng: createRng(seed), room, entities: [player], playerId: player.id };
+}
+
+/** Creates a simulation in the given room with the player at its spawn point and its dummies placed. */
+export function createSim(seed: number, roomDef: Room): SimState {
+  const room = loadRoom(roomDef);
+  const player = createEntity(1, 'player', room.spawn, TUNING.playerRadius, TUNING.playerHealth);
+  const dummies = room.dummies.map((p, i) => createEntity(2 + i, 'dummy', p, TUNING.dummyRadius, TUNING.dummyHealth));
+  return {
+    tick: 0,
+    rng: createRng(seed),
+    room,
+    entities: [player, ...dummies],
+    playerId: player.id,
+    player: createPlayerCombat(),
+    hitstop: 0,
+  };
 }
 
 export function getPlayer(state: SimState): Entity {
@@ -60,31 +68,55 @@ export function getPlayer(state: SimState): Entity {
   return player;
 }
 
-function movePlayer(player: Entity, intent: InputIntent, room: Room): void {
-  player.facing = intent.aim;
-
-  let mx = intent.moveX;
-  let my = intent.moveY;
-  const len2 = mx * mx + my * my;
-  if (len2 === 0) return;
-  if (len2 > 1) {
-    const len = Math.sqrt(len2);
-    mx /= len;
-    my /= len;
-  }
-
-  const dist = TUNING.moveSpeed * STEP_SECONDS;
-  player.pos.x += mx * dist;
-  player.pos.y += my * dist;
-  resolveCircle(player.pos, player.radius, room);
+/** The hit area of the player's current attack, as the view should draw it. */
+export interface AttackArea {
+  index: number;
+  phase: AttackPhase;
+  apex: Vec2;
+  /** Direction in radians from +x. */
+  dir: number;
+  range: number;
+  /** Full opening angle in radians. */
+  angle: number;
 }
 
-/** Advances the simulation by exactly one fixed step. */
-export function step(state: SimState, intent: InputIntent): void {
+export function attackArea(state: SimState): AttackArea | null {
+  const a = state.player.action;
+  if (a.kind !== 'attack') return null;
+  const def = WEAPON[a.index];
+  const p = getPlayer(state).pos;
+  return { index: a.index, phase: a.phase, apex: { x: p.x, y: p.y }, dir: a.dir, range: def.range, angle: def.angle };
+}
+
+/**
+ * Advances the simulation by exactly one fixed step and returns the gameplay
+ * events that occurred in it.
+ */
+export function step(state: SimState, intent: InputIntent): SimEvent[] {
+  const events: SimEvent[] = [];
   for (const e of state.entities) {
     e.prevPos.x = e.pos.x;
     e.prevPos.y = e.pos.y;
   }
-  movePlayer(getPlayer(state), intent, state.room);
+
+  // Presses are read even while frozen so they can be buffered.
+  readPresses(state.player, intent);
+
+  if (state.hitstop > 0) {
+    state.hitstop -= 1;
+    state.tick += 1;
+    return events;
+  }
+
+  countDownPlayerTimers(state.player);
+  updateRespawns(state);
+
+  const player = getPlayer(state);
+  updatePlayer(state, player, intent, events);
+  resolvePlayerHits(state, player, events);
+  integrateKnockback(state);
+  separatePlayer(state, player);
+
   state.tick += 1;
+  return events;
 }

@@ -18,4 +18,6 @@ export interface Room {
   height: number;
   walls: Rect[];
   spawn: Vec2;
+  /** Ground positions where training dummies stand. */
+  dummies: Vec2[];
 }

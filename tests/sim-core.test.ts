@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { startRoom } from '../src/data/rooms/start';
 import { createRng, nextFloat } from '../src/sim/rng';
 import { createSim, getPlayer, step } from '../src/sim/state';
+import { intent } from './helpers';
 
 function draw(seed: number, count: number): number[] {
   const rng = createRng(seed);
@@ -32,7 +33,7 @@ describe('simulation without a display', () => {
     expect(typeof window).toBe('undefined');
     expect(typeof document).toBe('undefined');
     const sim = createSim(1, startRoom);
-    step(sim, { moveX: 1, moveY: 0, aim: 0 });
+    step(sim, intent({ moveX: 1 }));
     expect(sim.tick).toBe(1);
   });
 
@@ -40,7 +41,7 @@ describe('simulation without a display', () => {
     const sim = createSim(1, startRoom);
     const player = getPlayer(sim);
     const before = { ...player.pos };
-    step(sim, { moveX: 1, moveY: 0, aim: 0 });
+    step(sim, intent({ moveX: 1 }));
     expect(player.prevPos).toEqual(before);
     expect(player.pos.x).toBeGreaterThan(before.x);
     expect(player).toMatchObject({ z: 0, facing: 0, radius: expect.any(Number) });

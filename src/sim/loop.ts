@@ -1,5 +1,5 @@
 import { STEP_SECONDS, TUNING } from '../data/tuning';
-import { step, type InputIntent, type SimState } from './state';
+import { step, type InputIntent, type SimEvent, type SimState } from './state';
 
 /** Carries leftover time between display frames. */
 export interface Clock {
@@ -11,6 +11,11 @@ export interface FrameAdvance {
   steps: number;
   /** How far the frame falls between the last step and the next, 0 to 1. */
   alpha: number;
+}
+
+export interface FrameResult extends FrameAdvance {
+  /** Events of every step run this frame, in order. */
+  events: SimEvent[];
 }
 
 export function createClock(): Clock {
@@ -40,16 +45,18 @@ export function advanceClock(clock: Clock, elapsedSeconds: number): FrameAdvance
 
 /**
  * Runs one display frame: every step due this frame receives the same intent.
- * Returns the interpolation alpha for drawing.
+ * Returns the interpolation alpha, the events of all steps run, and how many
+ * steps ran (the input layer uses it to clear latched presses).
  */
 export function advanceFrame(
   clock: Clock,
   state: SimState,
   intent: InputIntent,
   elapsedSeconds: number,
-  stepFn: (state: SimState, intent: InputIntent) => void = step,
-): number {
+  stepFn: (state: SimState, intent: InputIntent) => SimEvent[] = step,
+): FrameResult {
   const { steps, alpha } = advanceClock(clock, elapsedSeconds);
-  for (let i = 0; i < steps; i++) stepFn(state, intent);
-  return alpha;
+  const events: SimEvent[] = [];
+  for (let i = 0; i < steps; i++) events.push(...stepFn(state, intent));
+  return { steps, alpha, events };
 }

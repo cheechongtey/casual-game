@@ -54,3 +54,22 @@ export function resolveCircle(pos: Vec2, radius: number, room: Room): void {
     if (!moved) break;
   }
 }
+
+/**
+ * Moves a circle by (dx, dy) in segments no longer than half its radius,
+ * resolving walls after each. The resolver is only correct while a circle
+ * has not crossed the middle of a wall in one move, so fast movement must
+ * go through here. Mutates `pos`.
+ */
+export function moveCircle(pos: Vec2, dx: number, dy: number, radius: number, room: Room): void {
+  const dist = Math.hypot(dx, dy);
+  if (dist === 0) return;
+  const segments = Math.max(1, Math.ceil(dist / (radius / 2)));
+  const sx = dx / segments;
+  const sy = dy / segments;
+  for (let i = 0; i < segments; i++) {
+    pos.x += sx;
+    pos.y += sy;
+    resolveCircle(pos, radius, room);
+  }
+}

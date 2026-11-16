@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Room } from '../src/data/room';
 import { advanceClock, advanceFrame, createClock } from '../src/sim/loop';
 import { createSim, getPlayer, type InputIntent } from '../src/sim/state';
+import { intent as makeIntent } from './helpers';
 
 function stepsOver(frames: number, frameSeconds: number): number {
   const clock = createClock();
@@ -35,20 +36,23 @@ describe('fixed-timestep clock', () => {
 });
 
 describe('frame loop', () => {
-  const room: Room = { id: 'open', width: 4000, height: 1000, walls: [], spawn: { x: 100, y: 500 } };
+  const room: Room = { id: 'open', width: 4000, height: 1000, walls: [], spawn: { x: 100, y: 500 }, dummies: [] };
 
   it('gives every step in a frame the same intent', () => {
     const sim = createSim(1, room);
-    const intent: InputIntent = { moveX: 1, moveY: 0, aim: 0.5 };
+    const intent: InputIntent = makeIntent({ moveX: 1, aim: 0.5 });
     const seen: InputIntent[] = [];
-    advanceFrame(createClock(), sim, intent, 2 / 60, (_state, received) => seen.push(received));
+    advanceFrame(createClock(), sim, intent, 2 / 60, (_state, received) => {
+      seen.push(received);
+      return [];
+    });
     expect(seen).toHaveLength(2);
     expect(seen[0]).toBe(intent);
     expect(seen[1]).toBe(intent);
   });
 
   it('covers the same distance in 2 seconds at 20 and at 240 frames per second', () => {
-    const intent: InputIntent = { moveX: 1, moveY: 0, aim: 0 };
+    const intent: InputIntent = makeIntent({ moveX: 1 });
     const distances = [20, 240].map((fps) => {
       const sim = createSim(1, room);
       const clock = createClock();

@@ -1,11 +1,17 @@
 import type { Room } from '../room';
 
-/** The single hand-authored room for the core loop skeleton. */
+/** The single hand-authored room. */
 export const startRoom: Room = {
   id: 'start',
   width: 2000,
   height: 1600,
   spawn: { x: 1000, y: 800 },
+  // Training dummies beside the spawn point, so combat can be tuned at once.
+  dummies: [
+    { x: 1150, y: 740 },
+    { x: 1150, y: 880 },
+    { x: 850, y: 800 },
+  ],
   walls: [
     // Four pillars around the spawn point.
     { x: 700, y: 500, w: 100, h: 100 },

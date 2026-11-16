@@ -19,9 +19,14 @@ export function circleOverlapsRect(center: Vec2, radius: number, rect: Rect): bo
 
 /**
  * Validates a room definition and returns an independent copy of it.
- * Throws a RoomError naming the offending wall or the spawn point.
+ * Throws a RoomError naming the offending wall, the spawn point, or the
+ * dummy placement.
  */
-export function loadRoom(room: Room, playerRadius: number = TUNING.playerRadius): Room {
+export function loadRoom(
+  room: Room,
+  playerRadius: number = TUNING.playerRadius,
+  dummyRadius: number = TUNING.dummyRadius,
+): Room {
   if (!(room.width > 0) || !(room.height > 0)) {
     throw new RoomError(room.id, `bounds must have positive size, got ${room.width} x ${room.height}`);
   }
@@ -46,11 +51,33 @@ export function loadRoom(room: Room, playerRadius: number = TUNING.playerRadius)
     }
   });
 
+  room.dummies.forEach((p, i) => {
+    const dummy = `dummy ${i} at (${p.x}, ${p.y})`;
+    if (p.x < dummyRadius || p.y < dummyRadius || p.x > room.width - dummyRadius || p.y > room.height - dummyRadius) {
+      throw new RoomError(room.id, `${dummy} overlaps the room edge`);
+    }
+    room.walls.forEach((wall, w) => {
+      if (circleOverlapsRect(p, dummyRadius, wall)) {
+        throw new RoomError(room.id, `${dummy} overlaps wall ${w}`);
+      }
+    });
+    if (Math.hypot(p.x - x, p.y - y) < dummyRadius + playerRadius) {
+      throw new RoomError(room.id, `${dummy} overlaps the player at the spawn point`);
+    }
+    for (let j = 0; j < i; j++) {
+      const q = room.dummies[j];
+      if (Math.hypot(p.x - q.x, p.y - q.y) < dummyRadius * 2) {
+        throw new RoomError(room.id, `${dummy} overlaps dummy ${j}`);
+      }
+    }
+  });
+
   return {
     id: room.id,
     width: room.width,
     height: room.height,
     walls: room.walls.map((w) => ({ ...w })),
     spawn: { ...room.spawn },
+    dummies: room.dummies.map((p) => ({ ...p })),
   };
 }

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Room } from '../src/data/room';
 import { startRoom } from '../src/data/rooms/start';
 import { loadRoom, RoomError } from '../src/sim/room';
-import { createSim, getPlayer } from '../src/sim/state';
+import { TUNING } from '../src/data/tuning';
+import { createSim, getPlayer, NO_INPUT, step } from '../src/sim/state';
 
 const valid: Room = {
   id: 'test',
@@ -10,6 +11,7 @@ const valid: Room = {
   height: 600,
   walls: [{ x: 100, y: 100, w: 50, h: 50 }],
   spawn: { x: 200, y: 300 },
+  dummies: [],
 };
 
 describe('room loading', () => {
@@ -59,5 +61,59 @@ describe('entering a room', () => {
     expect(sim.room.width).toBe(800);
     expect(sim.room.height).toBe(600);
     expect(sim.room.walls).toEqual(valid.walls);
+  });
+});
+
+describe('dummy placements', () => {
+  it('starts with at least two dummies near the spawn point', () => {
+    const sim = createSim(1, startRoom);
+    const dummies = sim.entities.filter((e) => e.kind === 'dummy');
+    expect(dummies.length).toBeGreaterThanOrEqual(2);
+    for (const d of dummies) {
+      expect(Math.hypot(d.pos.x - startRoom.spawn.x, d.pos.y - startRoom.spawn.y)).toBeLessThan(250);
+    }
+  });
+
+  it('rejects a dummy inside a wall and names the placement', () => {
+    const room = { ...valid, dummies: [{ x: 400, y: 300 }, { x: 125, y: 125 }] };
+    expect(() => loadRoom(room)).toThrow(/dummy 1 at \(125, 125\) overlaps wall 0/);
+  });
+
+  it('rejects a dummy overlapping the room edge and names the placement', () => {
+    const room = { ...valid, dummies: [{ x: 790, y: 300 }] };
+    expect(() => loadRoom(room)).toThrow(/dummy 0 at \(790, 300\) overlaps the room edge/);
+  });
+
+  it('rejects a dummy on the spawn point and names the placement', () => {
+    const room = { ...valid, dummies: [{ x: 200, y: 300 }] };
+    expect(() => loadRoom(room)).toThrow(/dummy 0 at \(200, 300\) overlaps the player at the spawn point/);
+  });
+
+  it('rejects a dummy overlapping another dummy and names the placement', () => {
+    const room = { ...valid, dummies: [{ x: 400, y: 300 }, { x: 430, y: 300 }] };
+    expect(() => loadRoom(room)).toThrow(/dummy 1 at \(430, 300\) overlaps dummy 0/);
+  });
+
+  it('creates one dummy at full health per placement', () => {
+    const sim = createSim(1, { ...valid, width: 1000, dummies: [{ x: 300, y: 300 }, { x: 600, y: 300 }] });
+    const dummies = sim.entities.filter((e) => e.kind === 'dummy');
+    expect(dummies.map((d) => d.pos)).toEqual([{ x: 300, y: 300 }, { x: 600, y: 300 }]);
+    for (const d of dummies) {
+      expect(d.health).toBe(TUNING.dummyHealth);
+      expect(d.maxHealth).toBe(TUNING.dummyHealth);
+    }
+  });
+
+  it('creates no dummies for a room with no placements', () => {
+    const sim = createSim(1, valid);
+    expect(sim.entities.filter((e) => e.kind === 'dummy')).toEqual([]);
+  });
+
+  it('leaves a dummy where it stands with full health for 600 steps', () => {
+    const sim = createSim(1, { ...valid, dummies: [{ x: 500, y: 300 }] });
+    for (let i = 0; i < 600; i++) step(sim, NO_INPUT);
+    const dummy = sim.entities.find((e) => e.kind === 'dummy')!;
+    expect(dummy.pos).toEqual({ x: 500, y: 300 });
+    expect(dummy.health).toBe(TUNING.dummyHealth);
   });
 });

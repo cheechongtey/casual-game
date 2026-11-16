@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { TUNING } from '../src/data/tuning';
 import { aimAngle, moveDirection } from '../src/input/intent';
+import { afterSteps, isHeld, pressButton, RELEASED, releaseButton } from '../src/input/latch';
+import { makeSector } from '../src/sim/sector';
+import { arcPoints } from '../src/view/arc';
 import { cameraBounds } from '../src/view/camera';
 import { lerp, project, unprojectGround } from '../src/view/projection';
 
@@ -89,5 +92,62 @@ describe('aim angle', () => {
 
   it('keeps the previous angle when the cursor is on the player', () => {
     expect(aimAngle(player, { x: 300.5, y: 300 }, Math.PI / 2)).toBe(Math.PI / 2);
+  });
+});
+
+describe('press latching', () => {
+  it('reports a click shorter than a step as held for exactly one step', () => {
+    let b = pressButton();
+    b = releaseButton(b);
+    // Sampled for the next step: still held.
+    expect(isHeld(b)).toBe(true);
+    b = afterSteps(b, 1);
+    expect(isHeld(b)).toBe(false);
+  });
+
+  it('keeps a tap held across a display frame in which no step runs', () => {
+    let b = pressButton();
+    b = releaseButton(b);
+    expect(isHeld(b)).toBe(true);
+    b = afterSteps(b, 0);
+    expect(isHeld(b)).toBe(true);
+    b = afterSteps(b, 2);
+    expect(isHeld(b)).toBe(false);
+  });
+
+  it('stays held while the button is down after a step consumes the press', () => {
+    let b = pressButton();
+    b = afterSteps(b, 3);
+    expect(isHeld(b)).toBe(true);
+    b = releaseButton(b);
+    expect(isHeld(b)).toBe(false);
+  });
+
+  it('starts released', () => {
+    expect(isHeld(RELEASED)).toBe(false);
+  });
+});
+
+describe('swing arc points', () => {
+  const apex = { x: 100, y: 200 };
+  const dir = 0.4;
+  const range = 72;
+  const angle = (110 * Math.PI) / 180;
+
+  it('ends on the two straight edges of the hit sector', () => {
+    const points = arcPoints(apex, dir, range, angle);
+    const sector = makeSector(apex, dir, range, angle);
+    const first = points[0];
+    const last = points[points.length - 1];
+    expect(first.x).toBeCloseTo(apex.x + sector.edgeA.x * range, 9);
+    expect(first.y).toBeCloseTo(apex.y + sector.edgeA.y * range, 9);
+    expect(last.x).toBeCloseTo(apex.x + sector.edgeB.x * range, 9);
+    expect(last.y).toBeCloseTo(apex.y + sector.edgeB.y * range, 9);
+  });
+
+  it('lies on the sector boundary at the attack range', () => {
+    for (const p of arcPoints(apex, dir, range, angle)) {
+      expect(Math.hypot(p.x - apex.x, p.y - apex.y)).toBeCloseTo(range, 9);
+    }
   });
 });
