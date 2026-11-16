@@ -4,6 +4,8 @@ A browser-based roguelite action game in a 3/4 oblique view, built with TypeScri
 
 The current build is a combat test bed: a player who can move, aim, attack in a three-hit combo, and dash inside one walled room with training dummies.
 
+Full documentation is in [docs/](docs/README.md): game design, architecture, combat rules, tuning, development, roadmap, and decisions.
+
 ## Controls
 
 - **W A S D**: move
