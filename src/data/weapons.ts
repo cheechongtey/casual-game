@@ -15,7 +15,7 @@ export interface AttackDef {
   angle: number;
   /** Distance the player moves forward over the active phase, in world units. */
   lunge: number;
-  /** Steps the simulation pauses when this attack lands. */
+  /** Steps the attacker and target pause when this attack lands. */
   hitstop: number;
 }
 

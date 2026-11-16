@@ -1,5 +1,6 @@
 import type { Vec2 } from '../data/room';
 import { STEP_SECONDS, TUNING } from '../data/tuning';
+import { createChaserAI, staggerEnemy } from './enemy';
 import { moveCircle } from './collision';
 import type { SimEvent, SimState } from './types';
 
@@ -8,7 +9,7 @@ export interface HitSpec {
   damage: number;
   /** Knockback speed in world units per second. */
   knockback: number;
-  /** Steps of global pause when the hit lands. */
+  /** Steps the attacker and target pause when the hit lands. */
   hitstop: number;
 }
 
@@ -30,6 +31,7 @@ export function applyHit(
 
   const pos = { x: target.pos.x, y: target.pos.y };
   target.health = Math.max(0, target.health - hit.damage);
+  staggerEnemy(target);
 
   let dx = target.pos.x - sourcePos.x;
   let dy = target.pos.y - sourcePos.y;
@@ -44,7 +46,9 @@ export function applyHit(
   target.vel.x = dx * hit.knockback;
   target.vel.y = dy * hit.knockback;
 
-  state.hitstop = Math.max(state.hitstop, hit.hitstop);
+  target.hitstop = Math.max(target.hitstop, hit.hitstop);
+  const source = state.entities.find((e) => e.id === sourceId);
+  if (source) source.hitstop = Math.max(source.hitstop, hit.hitstop);
 
   const events: SimEvent[] = [
     { type: 'hit', sourceId, targetId, damage: hit.damage, pos, hitstop: hit.hitstop },
@@ -54,16 +58,16 @@ export function applyHit(
     target.defeated = true;
     target.vel.x = 0;
     target.vel.y = 0;
-    target.respawnTicks = target.home ? TUNING.dummyRespawn : 0;
+    target.respawnTicks = target.respawnDelay;
     events.push({ type: 'defeated', targetId, pos: { ...pos } });
   }
   return events;
 }
 
 /** Moves every pushed entity by its knockback velocity, then slows it down. */
-export function integrateKnockback(state: SimState): void {
+export function integrateKnockback(state: SimState, frozen: ReadonlySet<number> = new Set()): void {
   for (const e of state.entities) {
-    if (e.defeated || (e.vel.x === 0 && e.vel.y === 0)) continue;
+    if (frozen.has(e.id) || e.defeated || (e.vel.x === 0 && e.vel.y === 0)) continue;
     moveCircle(e.pos, e.vel.x * STEP_SECONDS, e.vel.y * STEP_SECONDS, e.radius, state.room);
     e.vel.x *= TUNING.knockbackDecay;
     e.vel.y *= TUNING.knockbackDecay;
@@ -75,13 +79,15 @@ export function integrateKnockback(state: SimState): void {
 }
 
 /** Counts down respawn timers and restores defeated entities at their home. */
-export function updateRespawns(state: SimState): void {
+export function updateRespawns(state: SimState, frozen: ReadonlySet<number> = new Set()): void {
   for (const e of state.entities) {
-    if (!e.defeated || !e.home) continue;
+    if (frozen.has(e.id) || !e.defeated || !e.home) continue;
     e.respawnTicks -= 1;
     if (e.respawnTicks > 0) continue;
     e.respawnTicks = 0;
     e.defeated = false;
+    e.hitstop = 0;
+    if (e.ai) e.ai = createChaserAI();
     e.health = e.maxHealth;
     e.pos.x = e.prevPos.x = e.home.x;
     e.pos.y = e.prevPos.y = e.home.y;

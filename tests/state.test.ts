@@ -6,6 +6,12 @@ import { attackArea, createSim, getPlayer, step } from '../src/sim/state';
 import { intent, room, run } from './helpers';
 
 describe('entity state', () => {
+  it('gives a dummy its respawn delay and no AI', () => {
+    const dummy = createSim(1, room([], undefined, [{ x: 700, y: 500 }])).entities[1];
+    expect(dummy.respawnDelay).toBe(TUNING.dummyRespawn);
+    expect(dummy.ai).toBeNull();
+    expect(dummy.hitstop).toBe(0);
+  });
   it('gives the player its configured health', () => {
     const player = getPlayer(createSim(1, room()));
     expect(player.health).toBe(TUNING.playerHealth);

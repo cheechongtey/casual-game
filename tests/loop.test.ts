@@ -36,7 +36,7 @@ describe('fixed-timestep clock', () => {
 });
 
 describe('frame loop', () => {
-  const room: Room = { id: 'open', width: 4000, height: 1000, walls: [], spawn: { x: 100, y: 500 }, dummies: [] };
+  const room: Room = { id: 'open', width: 4000, height: 1000, walls: [], spawn: { x: 100, y: 500 }, enemies: [], dummies: [] };
 
   it('gives every step in a frame the same intent', () => {
     const sim = createSim(1, room);

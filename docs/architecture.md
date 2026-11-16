@@ -45,12 +45,14 @@ This is what makes gameplay testable without a browser and reproducible from a s
 | File | Responsibility |
 |---|---|
 | `data/tuning.ts` | Every tunable number that is not per-attack |
+| `data/enemies.ts` | Chaser stats and attack definition |
 | `data/weapons.ts` | The three attacks of the combo |
 | `data/room.ts`, `data/rooms/start.ts` | The `Room` type and the one room |
 | `sim/types.ts` | `InputIntent`, `Entity`, `PlayerCombat`, `SimState`, `SimEvent` |
-| `sim/state.ts` | `createSim`, `step`, and what the view reads (`getPlayer`, `attackArea`) |
+| `sim/state.ts` | `createSim`, `step`, and what the view reads (`getPlayer`, `attackArea`, `enemyAttackAreas`) |
 | `sim/loop.ts` | Fixed-timestep clock and `advanceFrame` |
 | `sim/player.ts` | The player's action state machine: attack, dash, movement, separation |
+| `sim/enemy.ts` | Chaser states, steering, attack scheduling, hits and separation |
 | `sim/damage.ts` | `applyHit`, knockback, respawn |
 | `sim/sector.ts` | The arc-shaped hit test |
 | `sim/collision.ts` | Circle against walls and room bounds |
@@ -73,13 +75,12 @@ SimState
   tick        steps taken so far
   rng         seeded generator state
   room        validated copy of the room definition
-  entities    the player and the dummies
+  entities    the player, dummies and chasers
   playerId    which entity is the player
   player      PlayerCombat: current action, combo, cooldowns, buffers
-  hitstop     steps left in the impact pause
 ```
 
-Entities are plain objects of one type, `Entity`, with a `kind` of `player` or `dummy`. There is no entity-component framework; systems are ordinary functions that take the state.
+Entities are plain objects of one type, `Entity`, with a `kind` of `player`, `dummy` or `chaser`. Each entity holds its own `hitstop` counter and `respawnDelay`. Its nullable `ai` stores chaser behaviour, cooldown, wait duration and detour. There is no entity-component framework; systems are ordinary functions that take the state.
 
 The player's action is a tagged union, so the player is always exactly one of idle, attacking (in windup, active, or recovery), or dashing. See [combat.md](combat.md).
 
@@ -113,19 +114,18 @@ Every step in a frame receives the same intent. That is why the intent carries *
 `step(state, intent)` in `sim/state.ts`:
 
 ```
-1. copy every entity's pos to prevPos
-2. read presses from the intent and buffer them    (always, even during hitstop)
-3. if hitstop > 0: decrement it, count the tick, return
-4. count down dash cooldown and combo window; count down respawn timers
-5. player:  advance the current action
-            set facing from aim (unless attacking)
-            try to start a dash, then an attack
-            move
-            count down the press buffers
-6. resolve hits for an attack in its active phase
-7. move knocked-back entities and slow them
-8. push the player out of solid entities (skipped while dashing)
-9. count the tick
+1. if the player is defeated: count the tick, return
+2. copy every entity's pos to prevPos
+3. read presses and buffer them (including during hitstop)
+4. decrement per-entity hitstop; freeze those paused at step start
+5. count down unfrozen respawn timers and restore expired entities
+6. unfrozen player: timers, action, facing, dash/attack, movement, buffers
+7. unfrozen enemies: advance states; grant attacks by wait/id; pursue or lunge
+8. resolve the unfrozen player's hits, then unfrozen enemies' hits on the player
+9. integrate unfrozen knockback
+10. separate enemies from fixed entities and each other, resolve walls;
+    then separate the player (unless dashing or frozen)
+11. count the tick
 ```
 
 `step` returns the events that happened in it. Events are not stored in the state.
@@ -183,7 +183,7 @@ The guarantee is per build and per machine. Some maths functions (`Math.hypot`, 
 
 ## Collision
 
-- The player and dummies are circles. Walls are axis-aligned rectangles.
+- All entities are circles. Walls are axis-aligned rectangles.
 - `resolveCircle` pushes a circle out of each wall along the shortest vector, up to three passes, then clamps it to the room. Sliding along walls and rounding corners fall out of this with no special cases.
 - That method is only right while a circle has not crossed the middle of a wall in one move. Fast movement (the dash, knockback) goes through `moveCircle`, which splits the move into segments of at most half the radius.
 - The player is pushed out of solid entities after movement; the other entity never moves from contact. While dashing this is skipped, so a dash passes through.

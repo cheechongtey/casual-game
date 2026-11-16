@@ -56,7 +56,7 @@ describe('health and defeat', () => {
     const events = applyHit(sim, SOURCE, DUMMY, { damage: 20, knockback: 380, hitstop: 3 });
     expect(events).toEqual([]);
     expect(entity(sim, DUMMY).vel).toEqual({ x: 0, y: 0 });
-    expect(sim.hitstop).toBe(0);
+    expect(getPlayer(sim).hitstop).toBe(0);
   });
 
   it('does not let an attack hit a defeated entity', () => {
@@ -119,13 +119,13 @@ describe('knockback', () => {
 describe('hitstop', () => {
   const def = WEAPON[0];
 
-  it('freezes everything for the configured steps, then resumes', () => {
+  it('freezes the player and target for the configured steps, then resumes', () => {
     const sim = createSim(1, room([], { x: 500, y: 500 }, [{ x: 550, y: 500 }]));
     const attack = intent({ attack: true, moveX: 1 });
     run(sim, attack, def.windup);
     const hitEvents = step(sim, attack);
     expect(hitEvents.some((e) => e.type === 'hit')).toBe(true);
-    expect(sim.hitstop).toBe(def.hitstop);
+    expect(getPlayer(sim).hitstop).toBe(def.hitstop);
 
     const frozen = JSON.stringify({ entities: sim.entities.map((e) => e.pos), action: sim.player.action });
     for (let i = 0; i < def.hitstop; i++) {
@@ -147,7 +147,7 @@ describe('hitstop', () => {
     const total = def.windup + def.active + def.recovery;
     for (let i = 0; i < total; i++) {
       step(sim, intent({ attack: i === 0 }));
-      expect(sim.hitstop).toBe(0);
+      expect(getPlayer(sim).hitstop).toBe(0);
     }
     step(sim, NO_INPUT);
     expect(sim.player.action.kind).toBe('idle');
@@ -156,11 +156,11 @@ describe('hitstop', () => {
   it('still buffers a press made during the freeze', () => {
     const sim = createSim(1, room([], { x: 500, y: 500 }, [{ x: 550, y: 500 }]));
     run(sim, intent({ attack: true }), def.windup + 1);
-    expect(sim.hitstop).toBe(def.hitstop);
+    expect(getPlayer(sim).hitstop).toBe(def.hitstop);
     step(sim, NO_INPUT);
     step(sim, intent({ attack: true }));
     expect(sim.player.attackBuffer).toBe(TUNING.inputBuffer);
-    run(sim, NO_INPUT, sim.hitstop);
+    run(sim, NO_INPUT, getPlayer(sim).hitstop);
     // The buffer did not run down while frozen.
     expect(sim.player.attackBuffer).toBe(TUNING.inputBuffer);
   });
@@ -169,7 +169,7 @@ describe('hitstop', () => {
     const sim = createSim(1, room([], { x: 500, y: 500 }, [{ x: 550, y: 500 }]));
     run(sim, intent({ attack: true }), def.windup + 1);
     step(sim, intent({ dash: true, moveY: 1 }));
-    const remaining = sim.hitstop;
+    const remaining = getPlayer(sim).hitstop;
     expect(run(sim, intent({ moveY: 1 }), remaining).filter((e) => e.type === 'dashStart')).toEqual([]);
     expect(step(sim, intent({ moveY: 1 })).some((e) => e.type === 'dashStart')).toBe(true);
   });
@@ -182,8 +182,44 @@ describe('invulnerability', () => {
     const events = applyHit(sim, SOURCE, DUMMY, { damage: 20, knockback: 380, hitstop: 3 });
     expect(events).toEqual([]);
     expect(entity(sim, DUMMY).health).toBe(TUNING.dummyHealth);
-    expect(sim.hitstop).toBe(0);
+    expect(getPlayer(sim).hitstop).toBe(0);
     step(sim, NO_INPUT);
     expect(entity(sim, DUMMY).pos).toEqual({ x: 600, y: 500 });
+  });
+});
+
+describe('per-entity hitstop', () => {
+  it('lets a knocked-back bystander keep moving during another hit', () => {
+    const sim = createSim(1, room([], undefined, [{ x: 550, y: 500 }, { x: 700, y: 500 }]));
+    applyHit(sim, SOURCE, 3, { damage: 1, knockback: 100, hitstop: 0 });
+    step(sim, NO_INPUT);
+    applyHit(sim, SOURCE, 2, { damage: 1, knockback: 100, hitstop: 3 }, 1);
+    const playerPos = { ...getPlayer(sim).pos }, targetPos = { ...entity(sim, 2).pos };
+    for (let n = 0; n < 3; n++) {
+      const x = entity(sim, 3).pos.x;
+      step(sim, intent({ moveY: 1 }));
+      expect(entity(sim, 3).pos.x).toBeGreaterThan(x);
+      expect(getPlayer(sim).pos).toEqual(playerPos);
+      expect(entity(sim, 2).pos).toEqual(targetPos);
+    }
+  });
+
+  it('pauses only the target when there is no source id', () => {
+    const sim = withDummy();
+    applyHit(sim, SOURCE, 2, { damage: 1, knockback: 100, hitstop: 3 });
+    expect(getPlayer(sim).hitstop).toBe(0);
+    const y = getPlayer(sim).pos.y;
+    step(sim, intent({ moveY: 1 }));
+    expect(getPlayer(sim).pos.y).toBeGreaterThan(y);
+    expect(entity(sim, 2).pos).toEqual({ x: 600, y: 500 });
+  });
+
+  it('can hit an already frozen target and extend its pause', () => {
+    const sim = withDummy();
+    applyHit(sim, SOURCE, 2, { damage: 1, knockback: 0, hitstop: 3 });
+    step(sim, NO_INPUT);
+    expect(applyHit(sim, SOURCE, 2, { damage: 2, knockback: 0, hitstop: 4 })).toHaveLength(1);
+    expect(entity(sim, 2).health).toBe(TUNING.dummyHealth - 3);
+    expect(entity(sim, 2).hitstop).toBe(4);
   });
 });

@@ -10,7 +10,7 @@ The full scope of the game, and what is agreed versus only proposed, is in [game
 
 | Milestone | Outcome | Status |
 |---|---|---|
-| 1. Vertical slice | A five-room run that is fun to repeat | In progress: changes 1 and 2 of 6 done |
+| 1. Vertical slice | A five-room run that is fun to repeat | In progress: changes 1 to 3 of 6 implemented; enemy-ai awaits final feel review and archive |
 | 2. Full run | A complete run through three areas with bosses, shops, and path choice | Proposed |
 | 3. Depth | More weapons, boon families and combinations, a full set of permanent upgrades | Proposed |
 | 4. Finish | Interface, sound, music, art pass, settings, balance | Proposed |
@@ -38,20 +38,22 @@ Each row is one OpenSpec change.
 |---|---|---|---|
 | 1 | `core-loop-skeleton` | Done | Project setup, the simulation and view split, movement, aim, one room, the oblique view |
 | 2 | `combat-feel` | Done | Three-hit combo, dash, damage, knockback, hitstop, training dummies, hit feedback |
-| 3 | `enemy-ai` | Next | Enemies that move and attack, damage to the player, a player health display, defeat |
+| 3 | `enemy-ai` | Implemented; awaiting feel review and archive | Chaser pursuit and attacks, per-entity hitstop, health display, defeat and restart |
 | 4 | `room-flow` | Planned | Several rooms, locked doors, waves, clearing a room, moving to the next, a run sequence |
 | 5 | `boon-system` | Planned | Upgrades that modify weapon and dash values or react to events; the special attack |
 | 6 | `meta-progression` | Planned | A hub, a currency kept between runs, permanent upgrades, saving |
 
 The order is deliberate. Combat was tuned against stationary targets before enemy behavior was added, and upgrades come after there is a run to use them in.
 
-### What `enemy-ai` is expected to need
+### What `enemy-ai` implements
 
-- A state machine per enemy: approach, telegraph, attack, recover.
-- Steering toward the player with separation between enemies, not pathfinding, while rooms stay open.
-- A limit on how many enemies attack at once.
+- A chaser state machine: idle, pursue, attack phases, stagger. Shooter, charger and mini-boss remain future work.
+- Seek and seeded sideways detours around rectangular walls, plus positional separation.
+- Two simultaneous attackers, chosen by longest wait and then entity id.
 - Enemy attacks reusing `applyHit`, the arc hit test, and the event stream.
 - The first source of damage to the player, which makes dash invulnerability matter.
+
+The hitstop question is settled: only attacker and target pause. The projectile question is explicitly deferred to the ranged-enemy follow-up because this change contains only the chaser.
 
 ## Milestones 2 to 4: candidate changes
 
@@ -82,8 +84,9 @@ Technical decisions deliberately left for later, with the change that should set
 | Question | Settle in |
 |---|---|
 | Should a buffered attack be able to interrupt late recovery? Today it waits for recovery to end. | Playtesting, any time |
-| Should hitstop freeze only the attacker and target? Today it pauses the whole simulation. | `enemy-ai` |
-| How should fast projectiles collide? Sub-stepping covers the dash; a swept test may be needed. | `enemy-ai` |
+| Should the player have brief invulnerability after taking damage? | Group-combat playtesting |
+| Should enemy hits interrupt player attacks? Currently they do not. | Group-combat playtesting |
+| How should fast projectiles collide? Sub-stepping covers the dash; a swept test may be needed. | Shooter / projectile follow-up; outside the chaser-only change |
 | Which editor for rooms: LDtk, Tiled, or keep hand-written data? | `room-flow` |
 | How do upgrades change values: a modifier stack, replaced definitions, or event hooks? | `boon-system` |
 | What is the special attack? | `boon-system` |
@@ -93,8 +96,10 @@ Technical decisions deliberately left for later, with the change that should set
 
 ## Known gaps
 
-- **Main specs are behind the code.** `openspec/specs/` holds the five capabilities from `core-loop-skeleton`. The requirements added and changed by `combat-feel` are in its archived change but have not been merged into the main specs.
-- **Nothing damages the player.** Player health and dash invulnerability exist and are tested, but cannot be seen in play.
+- **Chaser only.** Shooter, charger, mini-boss and projectiles remain to be built.
+- **No pathfinding for concave walls.** Detours handle a single rectangle; placements avoid the L-shaped corner.
+- **No room clearing.** Chasers respawn forever; room flow will replace this with encounters.
+- **No hub or persistence.** Defeat currently restarts the same room and seed.
 - **Feel is untuned.** The combat numbers are first guesses. See [tuning.md](tuning.md).
 - **No audio.**
 - **The scene and device input have no automated tests.** They are checked by hand in the browser.

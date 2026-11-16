@@ -109,7 +109,7 @@ Each attack damages a given target at most once, however long the target stays i
 - **Trigger:** a new press. Holding Space does not dash again.
 - **Walls:** a dash stops at walls and slides along them. It cannot pass through a wall of any thickness.
 - **Entities:** a dash passes through dummies. If it ends inside one, the player is pushed out on the next step.
-- **Invulnerability:** the player cannot be damaged from the step a dash starts until it ends. Nothing in the game damages the player yet, so this is only exercised by tests.
+- **Invulnerability:** the player cannot be damaged from the step a dash starts until it ends. Chaser attacks damage the player, so dashing through a swing avoids its damage.
 
 ### Dash cancel
 
@@ -132,6 +132,8 @@ Every hit goes through one function, `applyHit`. A hit against a defeated or inv
 
 - An entity starts at full health. Health never goes below zero.
 - At zero the entity is defeated. It is no longer drawn, cannot be hit or pushed, and stops blocking the player.
+- Chaser attacks are the source of player damage: 10 health per swing. Hits knock the player back and pause both participants for 4 steps, without interrupting the player’s action.
+- Player defeat stops all gameplay, while ticks continue. A dimmed view shows defeat immediately and restart instructions after 0.5 display seconds. A new key or mouse press then restarts the same room and seed at full health and initial placements. Early presses and buttons held through the delay do not restart; input during play never restarts.
 
 ### Knockback
 
@@ -146,7 +148,7 @@ A pushed target stops at walls and the room edge.
 
 ### Hitstop
 
-When a hit lands, the whole simulation pauses: 3 steps for attacks 1 and 2, 6 for the finisher. During the pause nothing moves and no timer advances. Presses made during it are still buffered.
+When a hit lands, only the attacker and target pause: 3 steps for attacks 1 and 2, 6 for the finisher. Their actions, cooldowns, movement and knockback stop; other entities continue. Presses made while the player is frozen are still buffered. A frozen target can still be hit.
 
 A miss causes no pause.
 
@@ -165,6 +167,9 @@ A miss causes no pause.
 | Faint arc, then bright arc | The attack's phase; the finisher's arc is orange |
 | Target flashes white | A `hit` event; lasts 0.12 s |
 | Screen shake | A `hit` event; strength scales with the hit's hitstop |
-| Health bar | Shown above an entity only while it is damaged |
+| Target health bar | Above damaged dummies and chasers; never above the player |
+| Player health | Always visible in the lower left, with current / maximum values |
+| Red enemy sector | Same sector as the hit test; opacity rises through windup, strongest in active |
+| Dimmed defeat view | Defeat message immediately, restart instructions after 0.5 seconds |
 | Light tint and fading trail | The player is dashing |
-| Debug overlay (top left) | Tick, position, facing, action, combo, cooldown, hitstop |
+| Debug overlay (top left) | Tick, position, facing, action, combo, cooldown, player hitstop, attackers / limit |

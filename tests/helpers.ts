@@ -1,4 +1,4 @@
-import type { Rect, Room, Vec2 } from '../src/data/room';
+import type { EnemyPlacement, Rect, Room, Vec2 } from '../src/data/room';
 import { NO_INPUT, step, type InputIntent, type SimEvent, type SimState } from '../src/sim/state';
 
 /** An intent with every field defaulted to no input. */
@@ -7,8 +7,8 @@ export function intent(fields: Partial<InputIntent> = {}): InputIntent {
 }
 
 /** A 1000 x 1000 test room. */
-export function room(walls: Rect[] = [], spawn: Vec2 = { x: 500, y: 500 }, dummies: Vec2[] = []): Room {
-  return { id: 'test', width: 1000, height: 1000, walls, spawn, dummies };
+export function room(walls: Rect[] = [], spawn: Vec2 = { x: 500, y: 500 }, dummies: Vec2[] = [], enemies: EnemyPlacement[] = []): Room {
+  return { id: 'test', width: 1000, height: 1000, walls, spawn, dummies, enemies };
 }
 
 /** Steps the simulation with the same intent and returns all events. */

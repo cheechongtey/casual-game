@@ -1,4 +1,5 @@
 import type { Rect, Room, Vec2 } from '../data/room';
+import { CHASER } from '../data/enemies';
 import { TUNING } from '../data/tuning';
 
 export class RoomError extends Error {
@@ -72,6 +73,31 @@ export function loadRoom(
     }
   });
 
+  room.enemies.forEach((p, i) => {
+    const name = `enemy ${i} (${p.kind}) at (${p.x}, ${p.y})`;
+    const radius = CHASER.radius;
+    if (p.x < radius || p.y < radius || p.x > room.width - radius || p.y > room.height - radius) {
+      throw new RoomError(room.id, `${name} overlaps the room edge`);
+    }
+    room.walls.forEach((wall, w) => {
+      if (circleOverlapsRect(p, radius, wall)) throw new RoomError(room.id, `${name} overlaps wall ${w}`);
+    });
+    if (Math.hypot(p.x - x, p.y - y) < radius + playerRadius) {
+      throw new RoomError(room.id, `${name} overlaps the player at the spawn point`);
+    }
+    room.dummies.forEach((q, j) => {
+      if (Math.hypot(p.x - q.x, p.y - q.y) < radius + dummyRadius) {
+        throw new RoomError(room.id, `${name} overlaps dummy ${j}`);
+      }
+    });
+    for (let j = 0; j < i; j++) {
+      const q = room.enemies[j];
+      if (Math.hypot(p.x - q.x, p.y - q.y) < radius * 2) {
+        throw new RoomError(room.id, `${name} overlaps enemy ${j}`);
+      }
+    }
+  });
+
   return {
     id: room.id,
     width: room.width,
@@ -79,5 +105,6 @@ export function loadRoom(
     walls: room.walls.map((w) => ({ ...w })),
     spawn: { ...room.spawn },
     dummies: room.dummies.map((p) => ({ ...p })),
+    enemies: room.enemies.map((p) => ({ ...p })),
   };
 }

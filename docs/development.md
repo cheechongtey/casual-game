@@ -40,7 +40,12 @@ Tests live in `tests/` and run with no browser. That works because the simulatio
 | `sim-core.test.ts` | Seeded generator, headless running, the simulation boundary rule |
 | `state.test.ts` | Starting entity state, step events, combat state exposed to the view |
 | `loop.test.ts` | Fixed timestep, catch-up cap, one intent per frame |
-| `rooms.test.ts` | Room validation and dummy placement |
+| `rooms.test.ts` | Room validation, dummy/enemy placements and starting room |
+| `enemy-movement.test.ts` | Noticing, pursuit, detours, separation and respawn |
+| `enemy-attacks.test.ts` | Phases, hits, hitstop, scheduling, cooldown, stagger and telegraphs |
+| `player-defeat.test.ts` | Final-hit events and complete gameplay freeze after defeat |
+| `hud.test.ts` | Restart acceptance, identical reset state, telegraph opacity and health fill |
+| `enemy-determinism.test.ts` | Recorded input with detours and enemy hits |
 | `movement.test.ts` | Movement, wall collision, determinism |
 | `melee.test.ts` | Hit area, attack phases, combo, buffering, lunge |
 | `dash.test.ts` | Dash movement, cooldown, cancelling, invulnerability |
@@ -55,7 +60,7 @@ Tests live in `tests/` and run with no browser. That works because the simulatio
 | Helper | Use |
 |---|---|
 | `intent({ ... })` | An `InputIntent` with every other field set to no input |
-| `room(walls, spawn, dummies)` | A 1000 x 1000 test room |
+| `room(walls, spawn, dummies, enemies)` | A 1000 x 1000 test room |
 | `run(sim, intent, steps)` | Step with one intent; returns all events |
 | `runEach(sim, steps, n => intent)` | Step with a different intent per step; returns events by step number |
 | `stepsWith(perStep, type)` | The step numbers at which an event type occurred |
@@ -70,7 +75,7 @@ Anything that needs Phaser: `GameScene` and `DeviceInput`. Check those in the br
 
 ## Checking things in the browser
 
-The debug overlay in the top left shows the tick, frame rate, player position and facing, the current action with its phase and steps left, the next combo attack, the dash cooldown, and hitstop.
+The debug overlay in the top left shows the tick, frame rate, player position and facing, the current action with its phase and steps left, the next combo attack, the dash cooldown, player hitstop, and the number of enemies in windup or active against the limit.
 
 In the dev server only, the running scene is available in the browser console as `__scene`. For example, `__scene.sim` is the live simulation state. It is not present in production builds.
 
@@ -86,9 +91,9 @@ Add an entry to `WEAPON` in `src/data/weapons.ts`. The combo length is the array
 
 ### A room
 
-1. Create a file in `src/data/rooms/` exporting a `Room`: `id`, `width`, `height`, `walls`, `spawn`, `dummies`.
+1. Create a file in `src/data/rooms/` exporting a `Room`: `id`, `width`, `height`, `walls`, `spawn`, `dummies`, `enemies`.
 2. Walls are rectangles with `x`, `y` at the corner nearest the origin, and must lie inside the bounds.
-3. `loadRoom` rejects a room whose spawn point or dummy placements overlap a wall, the room edge, or each other, and names the offender in the error.
+3. `loadRoom` rejects a room whose spawn point, dummy or enemy placements overlap a wall, the room edge, or each other, and names the offender in the error.
 
 Only one room is loaded today: `GameScene` imports `startRoom` directly. Choosing between rooms is part of the room-flow change on the [roadmap](roadmap.md).
 
@@ -164,3 +169,5 @@ When archiving, sync the change's spec deltas into `openspec/specs/` so the main
 - **Data over constants in logic.** A number someone might tune goes in `data/`.
 - **One entry point for a kind of change.** Health changes only in `applyHit`; coordinates convert only in `projection.ts`.
 - **Comments say why.** Units and non-obvious reasons, not a restatement of the code.
+
+The starting room places four chasers at (1050, 200), (1150, 200), (1250, 200), and (1350, 200). All begin beyond their 420-unit notice range, on open ground above the pillars and away from the lower-left L-shaped corner. The group can be approached together; dummies near spawn remain available for tuning.

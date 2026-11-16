@@ -20,6 +20,7 @@ export class DeviceInput {
   private readonly keys: MoveKeys = { up: false, down: false, left: false, right: false };
   private readonly cursor = new Phaser.Math.Vector2();
   private aim = 0;
+  private newPress = false;
   private attack: ButtonLatch = RELEASED;
   private dash: ButtonLatch = RELEASED;
 
@@ -81,9 +82,17 @@ export class DeviceInput {
     this.dash = afterSteps(this.dash, steps);
   }
 
+  /** Consumed once each display frame, independently of simulation steps. */
+  consumeNewPress(): boolean {
+    const pressed = this.newPress;
+    this.newPress = false;
+    return pressed;
+  }
+
   private onKeyDown(event: KeyboardEvent): void {
     // Auto-repeat must not re-press a key that was released by focus loss.
     if (event.repeat) return;
+    this.newPress = true;
     if (event.code === DASH_CODE) {
       this.dash = pressButton();
       return;
@@ -102,6 +111,7 @@ export class DeviceInput {
   }
 
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
+    this.newPress = true;
     if (pointer.button === LEFT_BUTTON) this.attack = pressButton();
   }
 
@@ -110,6 +120,7 @@ export class DeviceInput {
   }
 
   private releaseAll(): void {
+    this.newPress = false;
     this.keys.up = this.keys.down = this.keys.left = this.keys.right = false;
     this.attack = RELEASED;
     this.dash = RELEASED;

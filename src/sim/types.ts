@@ -16,7 +16,18 @@ export interface InputIntent {
 
 export const NO_INPUT: InputIntent = { moveX: 0, moveY: 0, aim: 0, attack: false, dash: false };
 
-export type EntityKind = 'player' | 'dummy';
+export type EntityKind = 'player' | 'dummy' | 'chaser';
+
+export interface ChaserAI {
+  kind: 'chaser';
+  state: { kind: 'idle' } | { kind: 'pursue' }
+    | { kind: 'attack'; phase: AttackPhase; ticksLeft: number; dir: number; hasHit: boolean }
+    | { kind: 'stagger'; ticksLeft: number };
+  cooldown: number;
+  waited: number;
+  detour: { side: -1 | 1; ticksLeft: number } | null;
+  lastSide: -1 | 1 | null;
+}
 
 export interface Entity {
   id: number;
@@ -44,6 +55,9 @@ export interface Entity {
   home: Vec2 | null;
   /** Steps until a defeated entity reappears. */
   respawnTicks: number;
+  respawnDelay: number;
+  hitstop: number;
+  ai: ChaserAI | null;
 }
 
 export type AttackPhase = 'windup' | 'active' | 'recovery';
@@ -85,8 +99,6 @@ export interface SimState {
   entities: Entity[];
   playerId: number;
   player: PlayerCombat;
-  /** Remaining steps of the global impact pause. */
-  hitstop: number;
 }
 
 /** Gameplay events reported by a step. Not part of the simulation state. */

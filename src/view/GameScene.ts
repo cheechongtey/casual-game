@@ -5,7 +5,9 @@ import { TUNING } from '../data/tuning';
 import { WEAPON } from '../data/weapons';
 import { DeviceInput } from '../input/DeviceInput';
 import { advanceFrame, createClock, type Clock } from '../sim/loop';
-import { attackArea, createSim, getPlayer, type Entity, type SimEvent, type SimState } from '../sim/state';
+import { attackArea, enemyAttackAreas, createSim, getPlayer, type Entity, type SimEvent, type SimState } from '../sim/state';
+import { isAttacking } from '../sim/enemy';
+import { acceptsRestart, enemyTelegraphOpacity, healthFillWidth } from './hud';
 import { arcPoints } from './arc';
 import { cameraBounds } from './camera';
 import { lerp, project } from './projection';
@@ -20,6 +22,9 @@ const COLORS = {
   playerDash: 0xe1f5fe,
   playerEdge: 0x0d2a3a,
   aim: 0xfff176,
+  chaser: 0xe85a63,
+  chaserEdge: 0x531b27,
+  enemyArc: 0xff4559,
   dummy: 0xd7a86e,
   dummyPost: 0x8d6e4a,
   dummyEdge: 0x3e2a17,
@@ -47,6 +52,9 @@ const TRAIL_POOL = 16;
 const TRAIL_SECONDS = 0.25;
 const BAR_WIDTH = 40;
 const BAR_HEIGHT = 5;
+const HUD_WIDTH = 240;
+const HUD_HEIGHT = 16;
+const HUD_MARGIN = 24;
 
 interface EntityView {
   body: Phaser.GameObjects.Graphics;
@@ -67,6 +75,12 @@ export class GameScene extends Phaser.Scene {
   private deviceInput!: DeviceInput;
   private views = new Map<number, EntityView>();
   private arc!: Phaser.GameObjects.Graphics;
+  private enemyArcs!: Phaser.GameObjects.Graphics;
+  private healthHud!: Phaser.GameObjects.Graphics;
+  private healthText!: Phaser.GameObjects.Text;
+  private defeatShade!: Phaser.GameObjects.Graphics;
+  private defeatText!: Phaser.GameObjects.Text;
+  private secondsSinceDefeat: number | null = null;
   private ghosts: Ghost[] = [];
   private debugText!: Phaser.GameObjects.Text;
   /** Where the camera looks before shake, in screen space. */
@@ -85,6 +99,7 @@ export class GameScene extends Phaser.Scene {
     this.views.clear();
     this.ghosts = [];
     this.shakeAmplitude = 0;
+    this.secondsSinceDefeat = null;
 
     const { room } = this.sim;
     this.drawFloor(room.width, room.height);
@@ -92,6 +107,7 @@ export class GameScene extends Phaser.Scene {
 
     for (const e of this.sim.entities) this.views.set(e.id, this.createEntityView(e));
     this.arc = this.add.graphics().setDepth(DEPTH_ARC);
+    this.enemyArcs = this.add.graphics().setDepth(DEPTH_ARC);
     for (let i = 0; i < TRAIL_POOL; i++) {
       this.ghosts.push({ g: this.add.graphics().setVisible(false), life: 0 });
     }
@@ -104,6 +120,16 @@ export class GameScene extends Phaser.Scene {
       .text(8, 8, '', { fontFamily: 'monospace', fontSize: '14px', color: '#9fb0c8' })
       .setScrollFactor(0)
       .setDepth(DEPTH_OVERLAY);
+
+    this.healthHud = this.add.graphics().setScrollFactor(0).setDepth(DEPTH_OVERLAY);
+    this.healthText = this.add.text(HUD_MARGIN, TUNING.viewHeight - HUD_MARGIN - HUD_HEIGHT - 26, '', {
+      fontFamily: 'monospace', fontSize: '18px', color: '#ffffff',
+    }).setScrollFactor(0).setDepth(DEPTH_OVERLAY);
+    this.defeatShade = this.add.graphics().setScrollFactor(0).setDepth(DEPTH_OVERLAY + 1);
+    this.defeatShade.fillStyle(0x070a11, 0.72).fillRect(0, 0, TUNING.viewWidth, TUNING.viewHeight);
+    this.defeatText = this.add.text(TUNING.viewWidth / 2, TUNING.viewHeight / 2, '', {
+      fontFamily: 'monospace', fontSize: '28px', color: '#ffffff', align: 'center', lineSpacing: 18,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH_OVERLAY + 2);
 
     if (import.meta.env.DEV) {
       // Handle for inspecting the running game from the browser console.
@@ -121,9 +147,18 @@ export class GameScene extends Phaser.Scene {
     camera.centerOn(this.cameraTarget.x, this.cameraTarget.y);
     const player = getPlayer(this.sim);
     const intent = this.deviceInput.sample(player.pos, camera);
+    const newPress = this.deviceInput.consumeNewPress();
+    if (player.defeated) {
+      this.secondsSinceDefeat = (this.secondsSinceDefeat ?? 0) + dt;
+      if (acceptsRestart(this.secondsSinceDefeat, newPress)) {
+        this.scene.restart();
+        return;
+      }
+    }
 
     const { alpha, events, steps } = advanceFrame(this.clock, this.sim, intent, dt);
     this.deviceInput.consumed(steps);
+    if (player.defeated && this.secondsSinceDefeat === null) this.secondsSinceDefeat = 0;
 
     this.handleEvents(events);
     this.updateEffects(dt);
@@ -155,6 +190,7 @@ export class GameScene extends Phaser.Scene {
 
   /** Draws the current simulation state. Reads the simulation, never writes it. */
   private drawFrame(alpha: number): void {
+    if (getPlayer(this.sim).defeated) alpha = 1;
     for (const e of this.sim.entities) this.drawEntity(e, alpha);
 
     const player = getPlayer(this.sim);
@@ -163,6 +199,8 @@ export class GameScene extends Phaser.Scene {
     const ground = project(gx, gy, 0);
 
     this.drawArc(gx, gy);
+    this.drawEnemyArcs(alpha);
+    this.drawHud(player);
     if (this.sim.player.action.kind === 'dash') this.dropGhost(gx, gy, player.radius);
 
     this.cameraTarget = ground;
@@ -176,7 +214,7 @@ export class GameScene extends Phaser.Scene {
         `facing ${Phaser.Math.RadToDeg(player.facing).toFixed(0)} deg\n` +
         `action ${this.describeAction()}\n` +
         `combo next ${this.nextComboAttack()}   dash cooldown ${this.sim.player.dashCooldown}   ` +
-        `hitstop ${this.sim.hitstop}`,
+        `hitstop ${player.hitstop}   attackers ${this.sim.entities.filter(e => !e.defeated && isAttacking(e)).length}/${TUNING.attackerLimit}`,
     );
   }
 
@@ -225,9 +263,10 @@ export class GameScene extends Phaser.Scene {
     view.body.setPosition(anchor.x, anchor.y).setDepth(gy);
     const flashing = view.flash > 0;
     if (e.kind === 'player') this.drawPlayerBody(view.body, e.radius, e.facing, flashing);
+    else if (e.kind === 'chaser') this.drawChaserBody(view.body, e.radius, e.facing, flashing);
     else this.drawDummyBody(view.body, e.radius, flashing);
 
-    const damaged = e.maxHealth > 0 && e.health < e.maxHealth;
+    const damaged = e.kind !== 'player' && e.maxHealth > 0 && e.health < e.maxHealth;
     view.bar.setVisible(damaged);
     if (damaged) this.drawHealthBar(view.bar, anchor, e);
   }
@@ -251,6 +290,16 @@ export class GameScene extends Phaser.Scene {
     g.lineBetween(0, 0, tip.x, tip.y);
     g.fillStyle(COLORS.aim, 1);
     g.fillCircle(tip.x, tip.y, 3);
+  }
+
+  private drawChaserBody(g: Phaser.GameObjects.Graphics, radius: number, facing: number, flashing: boolean): void {
+    g.clear().fillStyle(flashing ? COLORS.flash : COLORS.chaser, 1).lineStyle(2, COLORS.chaserEdge, 1);
+    g.fillRoundedRect(-radius, -radius * 2, radius * 2, radius * 2, 5);
+    g.strokeRoundedRect(-radius, -radius * 2, radius * 2, radius * 2, 5);
+    const tip = project(Math.cos(facing) * radius * 2, Math.sin(facing) * radius * 2);
+    const left = project(Math.cos(facing + 2.3) * radius * 0.65, Math.sin(facing + 2.3) * radius * 0.65);
+    const right = project(Math.cos(facing - 2.3) * radius * 0.65, Math.sin(facing - 2.3) * radius * 0.65);
+    g.fillStyle(COLORS.flash, 1).fillTriangle(tip.x, tip.y, left.x, left.y, right.x, right.y);
   }
 
   /** A training dummy: a post with a round head, so it reads differently from the player. */
@@ -299,6 +348,34 @@ export class GameScene extends Phaser.Scene {
     g.fillPoints(screen, true);
     g.lineStyle(active ? 2 : 1, color, active ? 0.9 : 0.35);
     g.strokePoints(screen, true);
+  }
+
+  private drawEnemyArcs(alpha: number): void {
+    const g = this.enemyArcs.clear();
+    for (const area of enemyAttackAreas(this.sim)) {
+      const opacity = enemyTelegraphOpacity(area.phase, area.windupProgress);
+      if (opacity <= 0) continue;
+      const e = this.sim.entities.find(e => e.id === area.entityId)!;
+      const apex = { x: lerp(e.prevPos.x, e.pos.x, alpha), y: lerp(e.prevPos.y, e.pos.y, alpha) };
+      const points = [apex, ...arcPoints(apex, area.dir, area.range, area.angle)].map(p => {
+        const s = project(p.x, p.y);
+        return new Phaser.Math.Vector2(s.x, s.y);
+      });
+      g.fillStyle(COLORS.enemyArc, opacity * 0.6).fillPoints(points, true);
+      g.lineStyle(2, COLORS.enemyArc, opacity).strokePoints(points, true);
+    }
+  }
+
+  private drawHud(player: Entity): void {
+    const y = TUNING.viewHeight - HUD_MARGIN - HUD_HEIGHT;
+    this.healthHud.clear().fillStyle(COLORS.barBack, 0.8).fillRect(HUD_MARGIN - 2, y - 2, HUD_WIDTH + 4, HUD_HEIGHT + 4);
+    this.healthHud.fillStyle(COLORS.barFill, 1).fillRect(HUD_MARGIN, y, healthFillWidth(player.health, player.maxHealth, HUD_WIDTH), HUD_HEIGHT);
+    this.healthText.setText(`${player.health} / ${player.maxHealth}`);
+    this.defeatShade.setVisible(player.defeated);
+    this.defeatText.setVisible(player.defeated);
+    if (player.defeated) {
+      this.defeatText.setText('You were defeated' + (acceptsRestart(this.secondsSinceDefeat, true) ? '\nPress any key or mouse button to restart' : ''));
+    }
   }
 
   private dropGhost(gx: number, gy: number, radius: number): void {

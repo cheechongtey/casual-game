@@ -12,6 +12,13 @@ export const startRoom: Room = {
     { x: 1150, y: 880 },
     { x: 850, y: 800 },
   ],
+  // Beyond notice range, on open ground above the pillars and away from the L.
+  enemies: [
+    { kind: 'chaser', x: 1050, y: 200 },
+    { kind: 'chaser', x: 1150, y: 200 },
+    { kind: 'chaser', x: 1250, y: 200 },
+    { kind: 'chaser', x: 1350, y: 200 },
+  ],
   walls: [
     // Four pillars around the spawn point.
     { x: 700, y: 500, w: 100, h: 100 },

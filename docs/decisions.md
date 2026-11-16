@@ -97,10 +97,10 @@ Add an entry when a decision would be expensive to reverse or would surprise som
 
 - **Why:** holding to attack is easier on the hand. A held dash that re-fired on cooldown would make movement unpredictable.
 
-### Hitstop pauses the whole simulation
+### Hitstop pauses the attacker and target
 
-- **Why:** with one player and one target at a time, a global pause looks the same as freezing just the two involved, and it is a single early return in `step`.
-- **Revisit when:** several enemies are fighting at once.
+- **Why:** each impact keeps its weight while bystanders continue moving. The player and a dummy keep the same pause duration as before.
+- **Turned down:** a global pause, which stutters the entire fight when a crowd is present.
 
 ### Health changes in one function
 
@@ -125,3 +125,21 @@ Add an entry when a decision would be expensive to reverse or would surprise som
 ### Each task states how it is verified
 
 - **Why:** a task is only done when its behavior is shown to work, by a test or by a named check in the browser.
+
+## Enemies
+
+### Seek with a sideways detour
+
+- **Why:** open rooms with rectangular walls need inexpensive steering that reuses wall sliding. Seeded tie-breaks preserve determinism.
+- **Turned down:** navigation grids and A*, which add map generation and smoothing before rooms need them. Concave layouts remain a known gap.
+
+### Count simultaneous attackers each step
+
+- **Why:** counting windup and active states needs no tokens to release on interruption or defeat. Recovery frees a place for a waiting enemy.
+- **Fairness:** longest wait first, then entity id; phase advancement, grants and movement run in separate passes.
+
+### Restart the scene after defeat
+
+- **Why:** scene restart recreates simulation, graphics, effects and input together, and shutdown already removes the input listeners. The seed and room remain the same.
+- **Input:** require a new keyboard or mouse press after 0.5 display seconds; held input and auto-repeat do not trigger restart.
+- **Turned down:** mutating the simulation in place and resetting each view timer and object individually. A hub replaces the restart loop later.

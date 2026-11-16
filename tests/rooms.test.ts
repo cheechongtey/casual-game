@@ -11,7 +11,7 @@ const valid: Room = {
   height: 600,
   walls: [{ x: 100, y: 100, w: 50, h: 50 }],
   spawn: { x: 200, y: 300 },
-  dummies: [],
+  enemies: [], dummies: [],
 };
 
 describe('room loading', () => {
@@ -116,4 +116,54 @@ describe('dummy placements', () => {
     expect(dummy.pos).toEqual({ x: 500, y: 300 });
     expect(dummy.health).toBe(TUNING.dummyHealth);
   });
+});
+
+describe('enemy placements', () => {
+  it.each([
+    [{ x: 125, y: 125 }, /enemy 0.*wall/],
+    [{ x: 2, y: 300 }, /enemy 0.*edge/],
+    [{ x: 200, y: 300 }, /enemy 0.*spawn/],
+    [{ x: 400, y: 300 }, /enemy 0.*dummy 0/],
+  ] as const)('rejects an invalid enemy at %o', (pos, message) => {
+    expect(() => loadRoom({ ...valid, dummies: [{ x: 400, y: 300 }], enemies: [{ kind: 'chaser', ...pos }] })).toThrow(message);
+  });
+
+  it('rejects overlapping enemies, naming the later placement', () => {
+    expect(() => loadRoom({ ...valid, enemies: [
+      { kind: 'chaser', x: 400, y: 300 }, { kind: 'chaser', x: 420, y: 300 },
+    ] })).toThrow(/enemy 1.*enemy 0/);
+  });
+
+  it('copies enemy placements independently', () => {
+    const source = { ...valid, enemies: [{ kind: 'chaser' as const, x: 400, y: 300 }] };
+    const loaded = loadRoom(source);
+    loaded.enemies[0].x += 1;
+    expect(source.enemies[0].x).toBe(400);
+  });
+});
+
+describe('enemy creation', () => {
+  it('creates full-health, idle chasers at each placement', () => {
+    const sim = createSim(1, { ...valid, enemies: [
+      { kind: 'chaser', x: 300, y: 300 }, { kind: 'chaser', x: 600, y: 300 },
+    ] });
+    const enemies = sim.entities.filter(e => e.kind === 'chaser');
+    expect(enemies.map(e => e.pos)).toEqual([{ x: 300, y: 300 }, { x: 600, y: 300 }]);
+    for (const e of enemies) {
+      expect(e.health).toBe(e.maxHealth);
+      expect(e.ai?.state.kind).toBe('idle');
+      expect(e.vel).toEqual({ x: 0, y: 0 });
+    }
+  });
+  it('creates none for an empty list', () => {
+    expect(createSim(1, valid).entities.some(e => e.kind === 'chaser')).toBe(false);
+  });
+});
+
+it('loads a starting room with a nearby enemy group beyond notice range', () => {
+  const sim = createSim(1, startRoom);
+  const chasers = sim.entities.filter(e => e.kind === 'chaser');
+  expect(chasers.length).toBeGreaterThanOrEqual(4);
+  for (const e of chasers) expect(Math.hypot(e.pos.x - startRoom.spawn.x, e.pos.y - startRoom.spawn.y)).toBeGreaterThan(420);
+  expect(chasers.filter(e => Math.hypot(e.pos.x - 1200, e.pos.y - 200) < 420).length).toBeGreaterThanOrEqual(3);
 });

@@ -20,4 +20,9 @@ export interface Room {
   spawn: Vec2;
   /** Ground positions where training dummies stand. */
   dummies: Vec2[];
+  enemies: EnemyPlacement[];
+}
+
+export interface EnemyPlacement extends Vec2 {
+  kind: 'chaser';
 }

@@ -1,6 +1,6 @@
 # Documentation
 
-A browser-based roguelite action game in a 3/4 oblique view, built with TypeScript, Phaser 4, and Vite. The current build is a combat test bed: one player, one walled room, and training dummies to hit.
+A browser-based roguelite action game in a 3/4 oblique view, built with TypeScript, Phaser 4, and Vite. The current build is a combat test bed: one player, one walled room, training dummies to hit, and a group of melee chasers.
 
 ## Where to start
 
@@ -9,6 +9,7 @@ A browser-based roguelite action game in a 3/4 oblique view, built with TypeScri
 | Know what the whole game is meant to be, and what is agreed so far | [game-design.md](game-design.md) |
 | Understand how the code is organized and why | [architecture.md](architecture.md) |
 | Know exactly how attacking, dashing, and damage behave | [combat.md](combat.md) |
+| Understand noticing, steering, attacks and stagger | [enemies.md](enemies.md) |
 | Change how the game feels | [tuning.md](tuning.md) |
 | Set up, run, test, or add something | [development.md](development.md) |
 | See what is built, what is next, and what is undecided | [roadmap.md](roadmap.md) |

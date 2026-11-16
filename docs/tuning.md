@@ -18,9 +18,21 @@ Durations are in simulation steps (60 per second). Distances are in world units,
 | `range` | Radius of the hit arc | 72 | 84 |
 | `angle` | Full opening angle of the arc | 110° | 150° |
 | `lunge` | Distance moved forward during the active phase | 10 | 18 |
-| `hitstop` | Steps the game pauses on a hit | 3 | 6 |
+| `hitstop` | Steps the attacker and target pause on a hit | 3 | 6 |
 
 Adding a fourth entry makes the combo four attacks long; the code reads the array's length.
+
+## Chaser: `src/data/enemies.ts`
+
+| Value | Default |
+|---|---|
+| Health / radius | 60 / 16 |
+| Speed / notice range / attack distance | 150 / 420 / 56 |
+| Attack windup / active / recovery | 24 / 3 / 30 steps |
+| Attack damage / knockback / hitstop | 10 / 260 / 4 |
+| Attack range / angle / lunge | 64 / 90° / 16 |
+| Cooldown / stagger / respawn delay | 50 / 20 / 180 steps |
+| Detour duration / angle | 30 steps / 75° |
 
 ## Everything else: `src/data/tuning.ts`
 
@@ -52,6 +64,7 @@ Adding a fourth entry makes the combo four attacks long; the code reads the arra
 
 | Value | Default | Meaning |
 |---|---|---|
+| `attackerLimit` | 2 | Maximum enemies in windup or active together |
 | `playerHealth` | 100 | Player maximum health |
 | `knockbackDecay` | 0.85 | Knockback speed is multiplied by this each step |
 | `knockbackStopSpeed` | 5 | Knockback ends below this speed |
@@ -68,6 +81,7 @@ Adding a fourth entry makes the combo four attacks long; the code reads the arra
 
 | Value | Default | Meaning |
 |---|---|---|
+| `restartDelay` | 0.5 | Display seconds before restart accepts a new press |
 | `depthRatio` | 0.6 | Vertical compression of depth in the oblique view |
 | `wallHeight` | 48 | Drawn height of walls |
 | `viewWidth`, `viewHeight` | 1280, 720 | Game resolution |
@@ -87,6 +101,8 @@ These affect only what is drawn, never the simulation.
 | `SHAKE_DECAY_PER_SECOND` | 14 | How fast shake fades |
 | `TRAIL_SECONDS` | 0.25 | How long a dash trail ghost lasts |
 | `TRAIL_POOL` | 16 | Most trail ghosts on screen |
+| `HUD_WIDTH`, `HUD_HEIGHT`, `HUD_MARGIN` | 240, 16, 24 | Screen-fixed health display dimensions and inset |
+| `BAR_WIDTH`, `BAR_HEIGHT` | 40, 5 | Floating bars for damaged targets |
 | `COLORS` | | Every placeholder color |
 
 ## What to change for a given feel
@@ -115,5 +131,7 @@ These affect only what is drawn, never the simulation.
 ## Constraints to keep in mind
 
 - **Fast movement and thin walls.** Dash and knockback are split into small segments so they cannot pass through walls. Ordinary movement is not, so keep the distance moved per step (`moveSpeed / 60`, about 4.3) well under `playerRadius`.
-- **Hitstop is global.** It pauses everything, including the dash cooldown and other targets' knockback. Long hitstop values will feel worse once there are many enemies.
+- **Hitstop is per entity.** Only the attacker and target pause, including their cooldowns and knockback. Bystanders keep moving.
 - **Buffer versus recovery.** If `inputBuffer` is longer than an attack's `recovery`, a press during the active phase will still chain. That may or may not be what you want.
+
+`view/hud.ts` computes restart acceptance, health fill width, and enemy telegraph opacity. Windup opacity rises from 0.12 to 0.6; active is 1; recovery is 0. The renderer uses that opacity for the outline and multiplies it by 0.6 for the fill.

@@ -37,6 +37,11 @@ export const TUNING = {
   /** Steps after defeat before a training dummy reappears. */
   dummyRespawn: 120,
 
+  /** Maximum enemies in windup or active together. */
+  attackerLimit: 2,
+  /** Display seconds after defeat before a new press restarts. */
+  restartDelay: 0.5,
+
   /** Aim keeps its previous angle when the cursor is this close to the player. */
   aimDeadzone: 1,
   /** Vertical compression of depth in the oblique view. */

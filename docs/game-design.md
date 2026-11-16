@@ -43,7 +43,7 @@ The theme, world, characters, and names are original and still to be chosen. The
 
 | Loop | Status |
 |---|---|
-| Moment | **Built** against training dummies |
+| Moment | **Built** against training dummies and chasers |
 | Room | **Slice** |
 | Run | **Slice** as five rooms; **Proposed** at full length |
 | Meta | **Slice** as one currency and a few upgrades; **Proposed** in full |
@@ -59,7 +59,7 @@ The theme, world, characters, and names are original and still to be chosen. The
 | Attack | Three-hit melee combo ending in a finisher | **Built** |
 | Dash | Fast burst with invulnerability; cancels attacks | **Built** |
 | Special | A second attack with a different shape and a cost or cooldown | **Slice** |
-| Health | A health pool; reaching zero ends the run | **Built** in the simulation; **Slice** for display and defeat |
+| Health | A health pool and fixed display; zero stops play, then a fresh press restarts the room | **Built** |
 | Cast / ranged option | A limited ranged attack | **Proposed** |
 
 The rules for the built actions are in [combat.md](combat.md).
@@ -89,7 +89,7 @@ Proposed full-game total: four weapons. Each is a data definition plus, where ne
 
 | Type | Asks the player to... | Status |
 |---|---|---|
-| Chaser | Deal with pressure at close range | **Slice** |
+| Chaser | Deal with pressure at close range | **Built** |
 | Shooter | Close distance or dodge projectiles | **Slice** |
 | Charger | Dodge sideways at the right moment | **Slice** |
 | Mini-boss | Use everything learned so far | **Slice** |
@@ -111,7 +111,7 @@ Rooms are hand-authored layouts. Encounters, rewards, and the order of rooms var
 
 | Room type | What happens | Status |
 |---|---|---|
-| Test room | Walls and training dummies | **Built** |
+| Test room | Walls, training dummies and four chasers | **Built** |
 | Combat | Doors lock, enemies arrive in waves, a reward appears when cleared | **Slice** |
 | Reward choice | Pick one of three upgrades | **Slice** |
 | Boss | A single large fight | **Slice** (mini-boss) |
@@ -188,9 +188,9 @@ Death is the normal way a run ends. The player always returns with something.
 |---|---|
 | Debug overlay | **Built** |
 | Health bars over damaged targets | **Built** |
-| Player health display | **Slice** |
+| Player health display | **Built** in the lower left, fixed through camera movement and shake |
 | Boon choice screen | **Slice** |
-| Death screen leading to the hub | **Slice** |
+| Death screen | **Built** with delayed room restart; **Slice** for returning to the hub |
 | Hub upgrade screen | **Slice** |
 | Dash cooldown and special readiness indicators | **Proposed** |
 | Title screen | **Proposed** |
@@ -227,7 +227,7 @@ Death is the normal way a run ends. The player always returns with something.
 | | Now | Slice | Proposed full game |
 |---|---|---|---|
 | Weapons | 1 | 1 | 4 |
-| Enemy types | 0 (dummies) | 3 and a mini-boss | About 10, with elites |
+| Enemy types | 1 (chaser), plus dummies | 3 and a mini-boss | About 10, with elites |
 | Bosses | 0 | 1 mini-boss | 3 |
 | Areas | 1 test room | 1 | 3 |
 | Room layouts | 1 | About 5 | About 30 |

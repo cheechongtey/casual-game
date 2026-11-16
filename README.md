@@ -2,7 +2,7 @@
 
 A browser-based roguelite action game in a 3/4 oblique view, built with TypeScript, Phaser 4, and Vite. Planning lives in `openspec/`.
 
-The current build is a combat test bed: a player who can move, aim, attack in a three-hit combo, and dash inside one walled room with training dummies.
+The current build is a combat test bed: a player who can move, aim, attack in a three-hit combo, and dash inside one walled room with training dummies and four melee chasers. Chasers pursue, telegraph swings and stagger when hit. The player has a fixed health display; defeat freezes play and a fresh key or mouse press after 0.5 seconds restarts the room.
 
 Full documentation is in [docs/](docs/README.md): game design, architecture, combat rules, tuning, development, roadmap, and decisions.
 
@@ -12,6 +12,7 @@ Full documentation is in [docs/](docs/README.md): game design, architecture, com
 - **Mouse**: aim
 - **Left mouse button**: attack (hold to keep attacking)
 - **Space**: dash
+- **Any new key or mouse press after defeat**: restart after the short delay
 
 ## Scripts
 
@@ -46,10 +47,10 @@ npm run preview
 ```
 src/
   sim/    game rules in plain TypeScript: state, step, collision, rng, room validation,
-          player actions (attack, dash), damage, knockback, hit-area test
-  data/   room definitions, tuning constants, and weapons.ts (the combo's attack values)
+          player actions (attack, dash), enemy behaviour, damage, knockback, hit-area test
+  data/   room definitions, tuning constants, weapons.ts (the combo), and enemies.ts (chaser values)
   input/  device state -> InputIntent, with press latching so brief clicks are not lost
-  view/   Phaser scene, projection, drawing, camera, combat feedback
+  view/   Phaser scene, projection, drawing, camera, combat feedback, health and defeat HUD
   main.ts Phaser game config and boot
 tests/    Vitest tests, run in Node with no browser
 ```

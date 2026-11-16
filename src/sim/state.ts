@@ -1,4 +1,5 @@
 import type { Room, Vec2 } from '../data/room';
+import { CHASER } from '../data/enemies';
 import { TUNING } from '../data/tuning';
 import { WEAPON } from '../data/weapons';
 import { integrateKnockback, updateRespawns } from './damage';
@@ -10,6 +11,7 @@ import {
   separatePlayer,
   updatePlayer,
 } from './player';
+import { createChaserAI, resolveEnemyHits, separateEnemies, updateEnemies } from './enemy';
 import { createRng } from './rng';
 import { loadRoom } from './room';
 import type { AttackPhase, Entity, EntityKind, InputIntent, SimEvent, SimState } from './types';
@@ -41,24 +43,27 @@ function createEntity(id: number, kind: EntityKind, pos: Vec2, radius: number, h
     defeated: false,
     invulnerable: false,
     solid: true,
-    home: kind === 'dummy' ? { ...pos } : null,
+    home: kind !== 'player' ? { ...pos } : null,
     respawnTicks: 0,
+    respawnDelay: kind === 'dummy' ? TUNING.dummyRespawn : kind === 'chaser' ? CHASER.respawnDelay : 0,
+    hitstop: 0,
+    ai: kind === 'chaser' ? createChaserAI() : null,
   };
 }
 
-/** Creates a simulation in the given room with the player at its spawn point and its dummies placed. */
+/** Creates a simulation in the given room with the player at its spawn point and its dummies and enemies placed. */
 export function createSim(seed: number, roomDef: Room): SimState {
   const room = loadRoom(roomDef);
   const player = createEntity(1, 'player', room.spawn, TUNING.playerRadius, TUNING.playerHealth);
   const dummies = room.dummies.map((p, i) => createEntity(2 + i, 'dummy', p, TUNING.dummyRadius, TUNING.dummyHealth));
+  const enemies = room.enemies.map((p, i) => createEntity(2 + dummies.length + i, p.kind, { x: p.x, y: p.y }, CHASER.radius, CHASER.health));
   return {
     tick: 0,
     rng: createRng(seed),
     room,
-    entities: [player, ...dummies],
+    entities: [player, ...dummies, ...enemies],
     playerId: player.id,
     player: createPlayerCombat(),
-    hitstop: 0,
   };
 }
 
@@ -88,12 +93,37 @@ export function attackArea(state: SimState): AttackArea | null {
   return { index: a.index, phase: a.phase, apex: { x: p.x, y: p.y }, dir: a.dir, range: def.range, angle: def.angle };
 }
 
+export interface EnemyAttackArea {
+  entityId: number;
+  phase: AttackPhase;
+  windupProgress: number;
+  apex: Vec2;
+  dir: number;
+  range: number;
+  angle: number;
+}
+
+/** Snapshot of committed enemy sectors, including recovery for view helpers. */
+export function enemyAttackAreas(state: SimState): EnemyAttackArea[] {
+  return state.entities.flatMap(e => {
+    const a = e.ai?.state;
+    if (e.defeated || a?.kind !== 'attack') return [];
+    return [{ entityId: e.id, phase: a.phase,
+      windupProgress: a.phase === 'windup' ? 1 - a.ticksLeft / CHASER.attack.windup : 1,
+      apex: { ...e.pos }, dir: a.dir, range: CHASER.attack.range, angle: CHASER.attack.angle }];
+  });
+}
+
 /**
  * Advances the simulation by exactly one fixed step and returns the gameplay
  * events that occurred in it.
  */
 export function step(state: SimState, intent: InputIntent): SimEvent[] {
   const events: SimEvent[] = [];
+  if (getPlayer(state).defeated) {
+    state.tick += 1;
+    return events;
+  }
   for (const e of state.entities) {
     e.prevPos.x = e.pos.x;
     e.prevPos.y = e.pos.y;
@@ -102,20 +132,25 @@ export function step(state: SimState, intent: InputIntent): SimEvent[] {
   // Presses are read even while frozen so they can be buffered.
   readPresses(state.player, intent);
 
-  if (state.hitstop > 0) {
-    state.hitstop -= 1;
-    state.tick += 1;
-    return events;
+  const frozen = new Set<number>();
+  for (const e of state.entities) {
+    if (e.hitstop > 0) {
+      e.hitstop -= 1;
+      frozen.add(e.id);
+    }
   }
-
-  countDownPlayerTimers(state.player);
-  updateRespawns(state);
-
+  updateRespawns(state, frozen);
   const player = getPlayer(state);
-  updatePlayer(state, player, intent, events);
-  resolvePlayerHits(state, player, events);
-  integrateKnockback(state);
-  separatePlayer(state, player);
+  if (!frozen.has(player.id)) {
+    countDownPlayerTimers(state.player);
+    updatePlayer(state, player, intent, events);
+  }
+  updateEnemies(state, player, frozen);
+  if (!frozen.has(player.id)) resolvePlayerHits(state, player, events);
+  resolveEnemyHits(state, player, frozen, events);
+  integrateKnockback(state, frozen);
+  separateEnemies(state, frozen);
+  if (!frozen.has(player.id)) separatePlayer(state, player);
 
   state.tick += 1;
   return events;
