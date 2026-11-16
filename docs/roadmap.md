@@ -10,7 +10,7 @@ The full scope of the game, and what is agreed versus only proposed, is in [game
 
 | Milestone | Outcome | Status |
 |---|---|---|
-| 1. Vertical slice | A five-room run that is fun to repeat | In progress: changes 1 to 3 of 6 implemented; enemy-ai awaits final feel review and archive |
+| 1. Vertical slice | A five-room run that is fun to repeat | In progress: changes 1 to 3 of 6 done |
 | 2. Full run | A complete run through three areas with bosses, shops, and path choice | Proposed |
 | 3. Depth | More weapons, boon families and combinations, a full set of permanent upgrades | Proposed |
 | 4. Finish | Interface, sound, music, art pass, settings, balance | Proposed |
@@ -38,14 +38,16 @@ Each row is one OpenSpec change.
 |---|---|---|---|
 | 1 | `core-loop-skeleton` | Done | Project setup, the simulation and view split, movement, aim, one room, the oblique view |
 | 2 | `combat-feel` | Done | Three-hit combo, dash, damage, knockback, hitstop, training dummies, hit feedback |
-| 3 | `enemy-ai` | Implemented; awaiting feel review and archive | Chaser pursuit and attacks, per-entity hitstop, health display, defeat and restart |
-| 4 | `room-flow` | Planned | Several rooms, locked doors, waves, clearing a room, moving to the next, a run sequence |
+| 3 | `enemy-ai` | Done | Chaser pursuit and attacks, per-entity hitstop, health display, defeat and restart |
+| 4 | `room-flow` | Next | Several rooms, locked doors, waves, clearing a room, moving to the next, a run sequence |
 | 5 | `boon-system` | Planned | Upgrades that modify weapon and dash values or react to events; the special attack |
 | 6 | `meta-progression` | Planned | A hub, a currency kept between runs, permanent upgrades, saving |
 
 The order is deliberate. Combat was tuned against stationary targets before enemy behavior was added, and upgrades come after there is a run to use them in.
 
 ### What `enemy-ai` implements
+
+Chaser pursuit has been played and feels good. The change is archived; other combat tuning remains open.
 
 - A chaser state machine: idle, pursue, attack phases, stagger. Shooter, charger and mini-boss remain future work.
 - Seek and seeded sideways detours around rectangular walls, plus positional separation.
